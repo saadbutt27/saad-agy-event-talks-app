@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Explore and share the latest Google Cloud BigQuery release notes. Easily filter, search, and Tweet specific updates.">
+    <title>BigQuery Release Explorer</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- CSS Stylesheet -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Background decorative glows -->
+        <div class="glow-bg glow-purple"></div>
+        <div class="glow-bg glow-blue"></div>
+
+        <!-- Sidebar / Header Section -->
+        <header class="app-header">
+            <div class="logo-area">
+                <div class="logo-icon">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2005/svg">
+                        <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 12 2 12 2ZM13 17H11V15H13V17ZM13 13H11V7H13V13Z" fill="currentColor"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1>BigQuery Feed</h1>
+                    <span class="logo-subtitle">Release Explorer</span>
+                </div>
+            </div>
+
+            <!-- Feed Status Dot -->
+            <div class="feed-status" id="feedStatus">
+                <span class="status-dot pulses"></span>
+                <span class="status-text">Connecting...</span>
+            </div>
+
+            <!-- Search and Filter Panel -->
+            <div class="controls-card">
+                <div class="search-box">
+                    <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="11" cy="11" r="8"></circle>
+                        <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                    </svg>
+                    <input type="text" id="searchInput" placeholder="Search release notes..." autocomplete="off">
+                </div>
+
+                <div class="filter-group">
+                    <label>Filter by Type</label>
+                    <div class="category-pills" id="categoryPills">
+                        <button class="pill active" data-category="all">All</button>
+                        <button class="pill" data-category="feature">Features</button>
+                        <button class="pill" data-category="fixed">Fixes</button>
+                        <button class="pill" data-category="change">Changes</button>
+                        <button class="pill" data-category="announcement">Announcements</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="actions-area">
+                <button id="refreshBtn" class="btn btn-primary btn-refresh">
+                    <svg class="icon icon-refresh" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M23 4v6h-6"></path>
+                        <path d="M1 20v-6h6"></path>
+                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                    </svg>
+                    <span>Refresh Feed</span>
+                </button>
+            </div>
+            
+            <footer class="sidebar-footer">
+                <p>Tracking BigQuery updates in real-time.</p>
+                <p class="copyright">&copy; 2026 Release Explorer</p>
+            </footer>
+        </header>
+
+        <!-- Main Display Grid -->
+        <main class="app-main">
+            <!-- List Section -->
+            <section class="notes-section">
+                <div class="section-header">
+                    <h2>Release Stream</h2>
+                    <span class="count-badge" id="resultsCount">0 updates</span>
+                </div>
+
+                <!-- Empty State (No Notes or Loading) -->
+                <div class="loading-state" id="loadingState">
+                    <div class="spinner"></div>
+                    <p>Fetching BigQuery release notes...</p>
+                </div>
+
+                <div class="empty-state hidden" id="emptyState">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <line x1="8" y1="12" x2="16" y2="12"></line>
+                    </svg>
+                    <h3>No release notes found</h3>
+                    <p>Try adjusting your search query or filter settings.</p>
+                </div>
+
+                <!-- Feed list container -->
+                <div class="notes-list" id="notesList"></div>
+            </section>
+
+            <!-- Details & Share Section -->
+            <section class="preview-section" id="previewSection">
+                <div class="preview-sticky">
+                    <!-- Default state (no update selected) -->
+                    <div class="empty-preview" id="emptyPreview">
+                        <div class="empty-preview-icon">
+                            <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                                <line x1="8" y1="21" x2="16" y2="21"></line>
+                                <line x1="12" y1="17" x2="12" y2="21"></line>
+                            </svg>
+                        </div>
+                        <h3>Select an update</h3>
+                        <p>Click on any release note card on the left to read its full details and share it to X (Twitter).</p>
+                    </div>
+
+                    <!-- Selected details panel -->
+                    <div class="details-panel hidden" id="detailsPanel">
+                        <div class="panel-header">
+                            <div class="meta-row">
+                                <span class="badge" id="detailBadge">Feature</span>
+                                <span class="date-text" id="detailDate">June 17, 2026</span>
+                            </div>
+                            <h3 class="panel-title">Update Details</h3>
+                        </div>
+
+                        <!-- Scraped HTML Content -->
+                        <div class="panel-body html-content" id="detailContent">
+                            <!-- Injected HTML -->
+                        </div>
+
+                        <div class="panel-footer-links">
+                            <a id="detailOriginalLink" href="#" target="_blank" class="text-link">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path>
+                                    <polyline points="15 3 21 3 21 9"></polyline>
+                                    <line x1="10" y1="14" x2="21" y2="3"></line>
+                                </svg>
+                                View in Google Cloud Docs
+                            </a>
+                        </div>
+
+                        <!-- Tweet Preview Box -->
+                        <div class="tweet-composer-card">
+                            <div class="composer-header">
+                                <div class="avatar-col">
+                                    <div class="user-avatar">BQ</div>
+                                </div>
+                                <div class="username-col">
+                                    <div class="user-display">BigQuery Watcher</div>
+                                    <div class="user-handle">@BigQueryWatcher</div>
+                                </div>
+                                <div class="x-logo">
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+                                        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                                    </svg>
+                                </div>
+                            </div>
+                            
+                            <div class="composer-body">
+                                <textarea id="tweetTextArea" rows="4" maxlength="280"></textarea>
+                                <div class="char-counter-row">
+                                    <span id="charCounter">280</span> characters remaining
+                                </div>
+                            </div>
+
+                            <button id="tweetBtn" class="btn btn-tweet">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+                                </svg>
+                                <span>Post to X (Twitter)</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Mobile Drawer for Details & Tweet (Bottom Sheet) -->
+    <div class="mobile-drawer-overlay" id="drawerOverlay"></div>
+    <div class="mobile-drawer" id="mobileDrawer">
+        <div class="drawer-drag-bar"></div>
+        <div class="drawer-close-btn" id="closeDrawerBtn">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18"></line>
+                <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
+        </div>
+        <div class="drawer-content" id="drawerContentContainer">
+            <!-- Selected details will be cloned here dynamically on mobile -->
+        </div>
+    </div>
+
+    <!-- Toast Notification for Actions -->
+    <div class="toast-notification" id="toast">
+        <span id="toastMsg">Feed updated!</span>
+    </div>
+
+    <!-- Core Javascript -->
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
