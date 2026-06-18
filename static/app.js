@@ -15,6 +15,8 @@ const emptyState = document.getElementById('emptyState');
 const notesList = document.getElementById('notesList');
 const feedStatus = document.getElementById('feedStatus');
 const exportCsvBtn = document.getElementById('exportCsvBtn');
+const mockWarningBanner = document.getElementById('mockWarningBanner');
+const closeBannerBtn = document.getElementById('closeBannerBtn');
 
 // Preview DOM Elements
 const emptyPreview = document.getElementById('emptyPreview');
@@ -23,9 +25,12 @@ const detailBadge = document.getElementById('detailBadge');
 const detailDate = document.getElementById('detailDate');
 const detailContent = document.getElementById('detailContent');
 const detailOriginalLink = document.getElementById('detailOriginalLink');
+const detailCopyHtmlBtn = document.getElementById('detailCopyHtmlBtn');
+const detailCopyTextBtn = document.getElementById('detailCopyTextBtn');
 const tweetTextArea = document.getElementById('tweetTextArea');
 const charCounter = document.getElementById('charCounter');
 const tweetBtn = document.getElementById('tweetBtn');
+const progressRingCircle = document.getElementById('progressRingCircle');
 
 // Mobile Drawer Elements
 const drawerOverlay = document.getElementById('drawerOverlay');
@@ -103,6 +108,68 @@ function setupEventListeners() {
         }
     });
 
+    // Close Mock/Offline warning banner
+    closeBannerBtn.addEventListener('click', () => {
+        mockWarningBanner.classList.add('hidden');
+    });
+
+    // Copy HTML inside details panel
+    detailCopyHtmlBtn.addEventListener('click', () => {
+        if (!selectedNoteId) return;
+        const note = allNotes.find(n => n.id === selectedNoteId);
+        if (!note) return;
+        navigator.clipboard.writeText(note.content_html).then(() => {
+            showToast('HTML content copied!');
+            const originalText = detailCopyHtmlBtn.innerHTML;
+            detailCopyHtmlBtn.innerHTML = `
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                <span>Copied HTML!</span>
+            `;
+            setTimeout(() => { detailCopyHtmlBtn.innerHTML = originalText; }, 2000);
+        }).catch(err => {
+            console.error('Failed to copy HTML: ', err);
+            showToast('Failed to copy HTML', true);
+        });
+    });
+
+    // Copy Plain Text inside details panel
+    detailCopyTextBtn.addEventListener('click', () => {
+        if (!selectedNoteId) return;
+        const note = allNotes.find(n => n.id === selectedNoteId);
+        if (!note) return;
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(note.content_html, 'text/html');
+        const plainText = doc.body.textContent || doc.body.innerText || "";
+        const textToCopy = `[BigQuery Update - ${note.date} - ${note.type}]\n${plainText.trim()}`;
+        navigator.clipboard.writeText(textToCopy).then(() => {
+            showToast('Plain text copied!');
+            const originalText = detailCopyTextBtn.innerHTML;
+            detailCopyTextBtn.innerHTML = `
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                </svg>
+                <span>Copied Text!</span>
+            `;
+            setTimeout(() => { detailCopyTextBtn.innerHTML = originalText; }, 2000);
+        }).catch(err => {
+            console.error('Failed to copy text: ', err);
+            showToast('Failed to copy text', true);
+        });
+    });
+
+    // Tweet composer keyboard shortcuts (Ctrl+Enter to post)
+    tweetTextArea.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            const text = tweetTextArea.value;
+            if (text && text.length <= 280) {
+                e.preventDefault();
+                tweetBtn.click();
+            }
+        }
+    });
+
     // Theme toggling initialization & event listener
     const savedTheme = localStorage.getItem('theme') || 'dark';
     document.documentElement.setAttribute('data-theme', savedTheme);
@@ -142,26 +209,39 @@ async function fetchNotes() {
         
         allNotes = data.notes;
         
-        // Update connection status dot
+        // Update connection status dot and show banner if offline/mocked
         if (data.is_mocked) {
             updateStatus('mocked', 'Mocked Data');
+            mockWarningBanner.classList.remove('hidden');
             showToast('Unable to connect to live feeds. Showing cached data.', true);
         } else {
             updateStatus('live', 'Live Feed Connected');
+            mockWarningBanner.classList.add('hidden');
             showToast('Feed refreshed successfully!');
         }
 
-        // Apply current filter & render notes
+        // Apply current filter, count categories & render notes
+        updatePillCounts();
         filterAndRender();
+
+        // Auto-select first note card on fetch if any exist
+        if (filteredNotes.length > 0) {
+            selectNote(filteredNotes[0].id);
+        }
 
     } catch (error) {
         console.error('Failed to fetch release notes:', error);
         updateStatus('error', 'Connection Error');
+        mockWarningBanner.classList.remove('hidden');
         showToast('Connection failed. Using fallback data.', true);
         
         // Use local mockup in case backend API crashes completely
         allNotes = getFallbackMockData();
+        updatePillCounts();
         filterAndRender();
+        if (filteredNotes.length > 0) {
+            selectNote(filteredNotes[0].id);
+        }
     } finally {
         loadingState.classList.add('hidden');
         notesList.classList.remove('hidden');
@@ -320,6 +400,25 @@ function updateCharCount() {
         charCounter.classList.add('danger');
     }
     
+    // Update SVG progress ring
+    const radius = 8;
+    const circumference = 2 * Math.PI * radius; // ~50.26
+    const filledPercent = Math.min(text.length / 280, 1.0);
+    const strokeDashoffset = circumference - (filledPercent * circumference);
+    
+    if (progressRingCircle) {
+        progressRingCircle.style.strokeDashoffset = strokeDashoffset;
+        
+        // Shift circle stroke colors dynamically
+        if (remaining <= 0) {
+            progressRingCircle.style.stroke = 'var(--badge-fixed)';
+        } else if (remaining <= 20) {
+            progressRingCircle.style.stroke = 'var(--badge-change)';
+        } else {
+            progressRingCircle.style.stroke = 'var(--color-tweet)';
+        }
+    }
+    
     // Disable tweet button if empty or too long
     tweetBtn.disabled = text.length === 0 || remaining < 0;
 }
@@ -448,6 +547,67 @@ function getFallbackMockData() {
         }
     ];
 }
+
+// Update counts inside category pills
+function updatePillCounts() {
+    const counts = {
+        all: allNotes.length,
+        feature: 0,
+        fixed: 0,
+        change: 0,
+        announcement: 0
+    };
+
+    allNotes.forEach(note => {
+        const type = note.type.toLowerCase();
+        if (type.includes('feature')) counts.feature++;
+        else if (type.includes('fixed') || type.includes('bug')) counts.fixed++;
+        else if (type.includes('change')) counts.change++;
+        else if (type.includes('announcement')) counts.announcement++;
+    });
+
+    document.querySelectorAll('#categoryPills .pill').forEach(pill => {
+        const category = pill.dataset.category;
+        const count = counts[category] !== undefined ? counts[category] : 0;
+        
+        let label = 'All';
+        if (category === 'feature') label = 'Features';
+        else if (category === 'fixed') label = 'Fixes';
+        else if (category === 'change') label = 'Changes';
+        else if (category === 'announcement') label = 'Announcements';
+        
+        pill.textContent = `${label} (${count})`;
+    });
+}
+
+// Keyboard arrow navigation for release notes list
+document.addEventListener('keydown', (e) => {
+    // Only toggle if composer/search inputs aren't focused
+    const active = document.activeElement.tagName.toLowerCase();
+    if (active === 'input' || active === 'textarea') return;
+
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        if (filteredNotes.length === 0) return;
+        e.preventDefault();
+
+        let newIdx = 0;
+        if (selectedNoteId) {
+            const currentIdx = filteredNotes.findIndex(n => n.id === selectedNoteId);
+            if (e.key === 'ArrowDown') {
+                newIdx = (currentIdx + 1) % filteredNotes.length;
+            } else {
+                newIdx = (currentIdx - 1 + filteredNotes.length) % filteredNotes.length;
+            }
+        }
+        
+        selectNote(filteredNotes[newIdx].id);
+
+        const selectedCard = document.querySelector(`.note-card[data-id="${filteredNotes[newIdx].id}"]`);
+        if (selectedCard) {
+            selectedCard.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+    }
+});
 
 // Copy single release note plain text to clipboard
 function copyNoteToClipboard(note, btn) {
