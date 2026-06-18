@@ -14,6 +14,7 @@ const loadingState = document.getElementById('loadingState');
 const emptyState = document.getElementById('emptyState');
 const notesList = document.getElementById('notesList');
 const feedStatus = document.getElementById('feedStatus');
+const exportCsvBtn = document.getElementById('exportCsvBtn');
 
 // Preview DOM Elements
 const emptyPreview = document.getElementById('emptyPreview');
@@ -47,6 +48,11 @@ function setupEventListeners() {
     // Refresh feed
     refreshBtn.addEventListener('click', () => {
         fetchNotes();
+    });
+
+    // Export to CSV
+    exportCsvBtn.addEventListener('click', () => {
+        exportToCSV();
     });
 
     // Category pills filter
@@ -185,7 +191,6 @@ function filterAndRender() {
         card.className = `note-card ${selectedNoteId === note.id ? 'selected' : ''}`;
         card.dataset.id = note.id;
 
-        // Clean description text for small body previews
         const badgeClass = getBadgeClass(note.type);
         
         card.innerHTML = `
@@ -194,17 +199,34 @@ function filterAndRender() {
                     <span class="badge ${badgeClass}">${note.type}</span>
                     <span class="date-badge">${note.date}</span>
                 </div>
-                <div class="card-arrow">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="5" y1="12" x2="19" y2="12"></line>
-                        <polyline points="12 5 19 12 12 19"></polyline>
-                    </svg>
+                <div class="card-actions">
+                    <button class="card-action-btn copy-btn" title="Copy plain text to clipboard">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="copy-icon">
+                            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                        </svg>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="check-icon hidden">
+                            <polyline points="20 6 9 17 4 12"></polyline>
+                        </svg>
+                    </button>
+                    <div class="card-arrow">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <line x1="5" y1="12" x2="19" y2="12"></line>
+                            <polyline points="12 5 19 12 12 19"></polyline>
+                        </svg>
+                    </div>
                 </div>
             </div>
             <div class="card-body">
                 ${note.content_html}
             </div>
         `;
+
+        const copyBtn = card.querySelector('.copy-btn');
+        copyBtn.addEventListener('click', (e) => {
+            e.stopPropagation(); // Prevent card selection click
+            copyNoteToClipboard(note, copyBtn);
+        });
 
         card.addEventListener('click', () => selectNote(note.id));
         notesList.appendChild(card);
@@ -407,4 +429,73 @@ function getFallbackMockData() {
             "original_link": "https://cloud.google.com/bigquery/docs/release-notes#June_16_2026"
         }
     ];
+}
+
+// Copy single release note plain text to clipboard
+function copyNoteToClipboard(note, btn) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(note.content_html, 'text/html');
+    const plainText = doc.body.textContent || doc.body.innerText || "";
+    const textToCopy = `[BigQuery Update - ${note.date} - ${note.type}]\n${plainText.trim()}`;
+
+    navigator.clipboard.writeText(textToCopy).then(() => {
+        const copyIcon = btn.querySelector('.copy-icon');
+        const checkIcon = btn.querySelector('.check-icon');
+        
+        copyIcon.classList.add('hidden');
+        checkIcon.classList.remove('hidden');
+        btn.classList.add('copied');
+        
+        showToast('Copied to clipboard!');
+        
+        setTimeout(() => {
+            copyIcon.classList.remove('hidden');
+            checkIcon.classList.add('hidden');
+            btn.classList.remove('copied');
+        }, 2000);
+    }).catch(err => {
+        console.error('Failed to copy: ', err);
+        showToast('Failed to copy to clipboard', true);
+    });
+}
+
+// Export the currently filtered notes to a CSV file
+function exportToCSV() {
+    if (filteredNotes.length === 0) {
+        showToast('No notes to export!', true);
+        return;
+    }
+
+    const headers = ['Date', 'Type', 'Content (HTML)', 'Link'];
+    const rows = filteredNotes.map(note => {
+        const date = note.date.replace(/"/g, '""');
+        const type = note.type.replace(/"/g, '""');
+        const htmlContent = note.content_html.replace(/"/g, '""');
+        const link = note.original_link.replace(/"/g, '""');
+        return `"${date}","${type}","${htmlContent}","${link}"`;
+    });
+
+    // Include UTF-8 BOM (\uFEFF) to make Excel parse UTF-8 characters correctly
+    const csvContent = "\uFEFF" + [headers.map(h => `"${h}"`).join(','), ...rows].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    
+    let filename = 'bigquery_release_notes';
+    if (activeCategory !== 'all') {
+        filename += `_${activeCategory}`;
+    }
+    if (searchQuery) {
+        filename += `_${searchQuery.replace(/[^a-z0-9]/gi, '_').toLowerCase()}`;
+    }
+    filename += '.csv';
+
+    link.setAttribute('href', url);
+    link.setAttribute('download', filename);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    showToast(`Exported ${filteredNotes.length} updates to CSV!`);
 }

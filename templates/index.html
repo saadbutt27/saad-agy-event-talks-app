@@ -82,8 +82,18 @@
             <!-- List Section -->
             <section class="notes-section">
                 <div class="section-header">
-                    <h2>Release Stream</h2>
-                    <span class="count-badge" id="resultsCount">0 updates</span>
+                    <div class="section-title-area">
+                        <h2>Release Stream</h2>
+                        <span class="count-badge" id="resultsCount">0 updates</span>
+                    </div>
+                    <button id="exportCsvBtn" class="btn-csv" title="Export current list to CSV">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                        </svg>
+                        <span>Export CSV</span>
+                    </button>
                 </div>
 
                 <!-- Empty State (No Notes or Loading) -->
