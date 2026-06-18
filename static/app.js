@@ -36,6 +36,7 @@ const drawerContentContainer = document.getElementById('drawerContentContainer')
 // Toast Notification
 const toast = document.getElementById('toast');
 const toastMsg = document.getElementById('toastMsg');
+const themeToggle = document.getElementById('themeToggle');
 
 // Initialize
 document.addEventListener('DOMContentLoaded', () => {
@@ -99,6 +100,23 @@ function setupEventListeners() {
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
             closeMobileDrawer();
+        }
+    });
+
+    // Theme toggling initialization & event listener
+    const savedTheme = localStorage.getItem('theme') || 'dark';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+    themeToggle.checked = savedTheme === 'light';
+
+    themeToggle.addEventListener('change', (e) => {
+        if (e.target.checked) {
+            document.documentElement.setAttribute('data-theme', 'light');
+            localStorage.setItem('theme', 'light');
+            showToast('Light theme enabled!');
+        } else {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            localStorage.setItem('theme', 'dark');
+            showToast('Dark theme enabled!');
         }
     });
 }
